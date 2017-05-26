@@ -106,17 +106,17 @@
 
 (defn singlethreaded-parser
   "Creates a new single-threaded parser for a grammar."
-  [^Grammar grammar]
-  (let [^Lexer lexer (.createLexerInterpreter grammar (common/input-stream ""))
+  [^LexerGrammar lexer-grammar ^Grammar grammar]
+  (let [^Lexer lexer (.createLexerInterpreter lexer-grammar (common/input-stream ""))
         parser       (.createParserInterpreter grammar (common/tokens lexer))]
      (SinglethreadedParser. grammar lexer parser)))
 
 ; Wrapper for using the singlethreaded parser in multiple threads.
-(defrecord ThreadLocalParser [^ThreadLocal local grammar]
+(defrecord ThreadLocalParser [^ThreadLocal local lexer-grammar grammar]
   proto/Parser
   (parse [_ opts text]
     (let [parser (or (.get local)
-                     (let [parser (singlethreaded-parser grammar)]
+                     (let [parser (singlethreaded-parser lexer-grammar grammar)]
                        (.set local parser)
                        parser))]
       (proto/parse parser opts text))))
@@ -124,7 +124,13 @@
 (defn parser
   "Construct a new parser."
   ([filename]
-   (ThreadLocalParser. (ThreadLocal.) (grammar filename))))
+   (let [grammar       (grammar filename)
+         lexer-grammar (.getImplicitLexer grammar)]
+     (ThreadLocalParser. (ThreadLocal.) lexer-grammar grammar)))
+  ([lexer-filename parser-filename]
+   (let [lexer-grammar (grammar lexer-filename)
+         grammar       (grammar parser-filename)]
+     (ThreadLocalParser. (ThreadLocal.) lexer-grammar grammar))))
 ;   (singlethreaded-parser (grammar filename))))
 
 (defn parse
